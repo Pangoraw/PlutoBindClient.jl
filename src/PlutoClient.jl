@@ -7,6 +7,8 @@ import DandelionWebSockets: state_connecting, state_open,
                             state_closing, state_closed
 import DandelionWebSockets: getrequestheaders, HTTPHandshakeLogic
 
+include("CPU.jl")
+
 # module Firebasey
 #         include("Firebasey.jl")
 # end
@@ -53,7 +55,7 @@ function on_binary(handler::PlutoClient, data::Vector{UInt8})
         # end
 end
 function send_msg(handler::PlutoClient, payload)
-        msg = pack(payload)
+        msg = merge(payload, Dict("request_id" => get_request_id(), "client_id" => client_id)) |> pack
         send_binary(handler.connection, msg)
 end
 
@@ -64,52 +66,35 @@ function state_connecting(handler::PlutoClient, connection::WebSocketConnection)
         handler.connection = connection
         println("connecting...")
 end
+
+function set_bond_value(handler::PlutoClient, path, value)
+        send_msg(handler, Dict(
+                "notebook_id" => handler.notebook_id,
+                "type" => "update_notebook",
+                "body" => Dict("updates" => [Dict("value" => Dict("value" => value), "op" => "replace", "path" => split(path, "/"))])))
+end
 function state_open(handler::PlutoClient)
         println("State: OPEN")
 
         @async begin
-                println(client.notebook_id)
-                request_id = get_request_id()
-                println("sending hello $(request_id)...")
+                println("sending hello...")
                 send_msg(handler, Dict(
-                        "request_id" => request_id,
                         "body" => Dict(),
                         "type" => "connect", 
-                        "client_id" => client_id,
                         "notebook_id" => client.notebook_id))
-                sleep(0.4)
                 ping(handler)
-                sleep(0.4)
-                request_id = get_request_id()
-                println("sending hello $(request_id)...")
                 send_msg(handler, Dict(
-                        "request_id" => request_id,
                         "body" => Dict("updates" => []),
                         "type" => "update_notebook",
-                        "client_id" => client_id,
                         "notebook_id" => client.notebook_id))
-                println("sent!")
-                #send_text(handler.connection, "hey!")
-
-                send_msg(handler, Dict(
-                        "request_id" => get_request_id(),
-                        "body" => Dict("query" => "sq"),
-                        "notebook_id" => client.notebook_id,
-                        "type" => "complete",
-                        "client_id" => client_id,
-                ))
 
                 @async begin
-                        value = 0
+   
+                        @info "shghsquidhqsuidh"
                         while true
-                                send_msg(handler, Dict(
-                                        "request_id" => get_request_id(),
-                                        "notebook_id" => handler.notebook_id,
-                                        "client_id" => client_id,
-                                        "type" => "update_notebook",
-                                        "body" => Dict("updates" => [Dict("value" => Dict("value" => value), "op" => "replace", "path" => ["bonds", "a"])])))
-                                value += 5 * (rand() - 0.5)
-                                sleep(.25)
+                                stats = Dict(st.first => compute_percentage(st.second, st.first) for st in get_cpu_stats())
+                                set_bond_value(handler, "bonds/a", stats)
+                                sleep(.4)
                         end
                 end
 
@@ -138,13 +123,15 @@ function connect(handler::PlutoClient, url)
         end
 end
 
-client = PlutoClient(notebook_id="8a008156-8fcb-11eb-2283-59fd2069a573")
+client = PlutoClient(notebook_id="b3967950-8fd3-11eb-0922-23b4633b089b")
 getrequestheaders(h::HTTPHandshakeLogic) = [
         "Sec-WebSocket-Version" => "13",
         "Upgrade" => "websocket",
         "Connection" => "Upgrade",
         "Sec-WebSocket-Key" => h.key,
-        "Cookie" => "secret=K3zjTlsw"]
+        "Cookie" => "secret=nzpl2yWx"]
 connect(client, "127.0.0.1:1235")
+
+@info "Waiting!"
 
 take!(client.stop_channel)
