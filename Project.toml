@@ -1,0 +1,3 @@
+[deps]
+DandelionWebSockets = "a3dee88c-baf6-5d24-a1ed-2b752da90c9e"
+MsgPack = "99f44e22-a591-53d1-9472-aa23ef4bd671"
